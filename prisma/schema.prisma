@@ -1,0 +1,221 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "mysql" // Or your preferred database
+  url      = env("DATABASE_URL")
+}
+
+// Users
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  hashedPassword String?
+  role           Role     @default(STUDENT)
+  status         Status   @default(ACTIVE)
+  profileId      String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  Profile        Profile?
+
+  @@fulltext([email])
+  @@map("users")
+}
+
+model Profile {
+  id          String    @id @default(cuid())
+  firstName   String
+  lastName    String
+  birthDate   DateTime?
+  phoneNumber String?
+  avatarUrl   String?
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id])
+  student     Student?
+  teacher     Teacher?
+  parent      Parent?
+
+  @@fulltext([firstName, lastName])
+  @@map("profiles")
+}
+
+// Students
+
+model Student {
+  id             String        @id @default(cuid())
+  profile        Profile       @relation(fields: [profileId], references: [id])
+  profileId      String        @unique
+  enrollments    Enrollment[]
+  attendances    Attendance[]
+  examResults    ExamResult[]
+  payments       Payment[]
+  balance        Float         @default(0)
+  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id])
+  academicYearId String?
+  parentId       String?
+  schoolGradeId  String?
+  Parent         Parent?       @relation(fields: [parentId], references: [id])
+  SchoolGrade    SchoolGrade?  @relation(fields: [schoolGradeId], references: [id])
+
+  @@map("students")
+}
+
+// Teachers
+
+model Teacher {
+  id        String    @id @default(cuid())
+  profile   Profile   @relation(fields: [profileId], references: [id])
+  profileId String    @unique
+  subjects  Subject[]
+  salary    Float
+  payments  Payment[]
+
+  @@map("teachers")
+}
+
+// Parents
+
+model Parent {
+  id        String    @id @default(cuid())
+  profile   Profile   @relation(fields: [profileId], references: [id])
+  profileId String    @unique
+  children  Student[]
+
+  @@map("parents")
+}
+
+// Financial Management
+
+model Payment {
+  id            String        @id @default(cuid())
+  amount        Float
+  paymentMethod PaymentMethod
+  date          DateTime      @default(now())
+  studentId     String?
+  teacherId     String?
+  student       Student?      @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  teacher       Teacher?      @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  installment   Installment?  @relation(fields: [installmentId], references: [id], onDelete: SetNull)
+  installmentId String?
+
+  @@map("payments")
+}
+
+model Installment {
+  id             String       @id @default(cuid())
+  name           String
+  dueDate        DateTime
+  amount         Float
+  payments       Payment[]
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  academicYearId String
+
+  @@map("installments")
+}
+
+// Academic Data
+
+model SchoolGrade {
+  id       String    @id @default(cuid())
+  name     String
+  level    Int
+  subjects Subject[]
+  Student  Student[]
+
+  @@map("grades")
+}
+
+model Subject {
+  id          String       @id @default(cuid())
+  name        String
+  schoolGrade SchoolGrade  @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  gradeId     String
+  teacher     Teacher?     @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  teacherId   String?
+  enrollments Enrollment[]
+  exams       Exam[]
+
+  @@map("subjects")
+}
+
+model Enrollment {
+  id        String    @id @default(cuid())
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  subject   Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId String
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+
+  @@map("enrollments")
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  date      DateTime @default(now())
+  isPresent Boolean  @default(true)
+
+  @@map("attendances")
+}
+
+model Exam {
+  id          String       @id @default(cuid())
+  subject     Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId   String
+  date        DateTime     @default(now())
+  totalMarks  Int
+  examResults ExamResult[]
+
+  @@map("exams")
+}
+
+model ExamResult {
+  id            String  @id @default(cuid())
+  student       Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId     String
+  exam          Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  examId        String
+  marksObtained Int
+
+  @@map("exam_results")
+}
+
+// Academic Year
+
+model AcademicYear {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  startDate    DateTime
+  endDate      DateTime
+  students     Student[]
+  installments Installment[]
+
+  @@map("academic_years")
+}
+
+// Enums
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  BANK_TRANSFER
+  CHECK
+}

@@ -1,0 +1,40 @@
+{
+  "name": "eschool",
+  "version": "1.0.0",
+  "description": "eSchool is a comprehensive education management platform designed to streamline operations and enhance the learning experience for institutes and private schools.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TariqAli93/eSchool.git"
+  },
+  "keywords": [
+    "Education",
+    "management",
+    "software",
+    "School",
+    "management",
+    "system",
+    "School",
+    "administration",
+    "software",
+    "Student",
+    "information",
+    "system"
+  ],
+  "author": "Tariq Ali Mohammed",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/TariqAli93/eSchool/issues"
+  },
+  "homepage": "https://github.com/TariqAli93/eSchool#readme",
+  "dependencies": {
+    "@fastify/swagger": "^8.14.0",
+    "@prisma/client": "^5.15.1",
+    "fastify": "^4.28.0"
+  }
+}
