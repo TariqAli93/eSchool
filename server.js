@@ -1,22 +1,14 @@
+import autoLoad from '@fastify/autoload'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
 import fastify from 'fastify'
-import userRoute from './routes/user.routes.js'
 import dotenv from 'dotenv'
 import cors from '@fastify/cors'
 
-import { PrismaClient } from '@prisma/client'
-import prismaErrorMiddleware from './middlewares/prismaErrorHandler.js'
-
-const prisma = new PrismaClient({
-  log: ['query', 'error', 'warn'],
-})
-
-prisma.$use(prismaErrorMiddleware)
-
-globalThis.prisma = prisma
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 dotenv.config()
-
-// Define the logger configuration based on the environment
 
 const envToLogger = {
   development: {
@@ -28,7 +20,7 @@ const envToLogger = {
       },
     },
   },
-  production: true,
+  production: false,
   test: false,
 }
 
@@ -36,8 +28,17 @@ const app = fastify({
   logger: envToLogger[process.env.ENVIRONMENT] ?? true,
 })
 
-// Register the routes
-app.register(userRoute)
+await app.register(autoLoad, {
+  dir: join(__dirname, 'routes'),
+  dirNameRoutePrefix: false,
+  routeParams: true,
+})
+
+await app.register(autoLoad, {
+  dir: join(__dirname, 'plugins'),
+  dirNameRoutePrefix: false,
+  routeParams: true,
+})
 
 await app.register(cors, {
   origin: '*',
@@ -46,6 +47,7 @@ await app.register(cors, {
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   credentials: true,
 })
+
 const server = async () => {
   try {
     await app.listen({ port: process.env.SERVER_PORT || 5000 })

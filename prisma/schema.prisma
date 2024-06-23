@@ -4,94 +4,129 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql" // Or your preferred database
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
-// Users
+// -------- Core Entities --------
 
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  hashedPassword String?
-  role           Role     @default(STUDENT)
-  status         Status   @default(ACTIVE)
-  profileId      String?  @unique
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  Profile        Profile?
+  id                String              @id @default(uuid())
+  email             String              @unique
+  passwordHash      String
+  role              Role                @default(STUDENT)
+  status            Status              @default(ACTIVE)
+  profile           Profile             @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId         String              @unique
+  deletedAt         DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  Announcement      Announcement[]
+  TeacherEvaluation TeacherEvaluation[]
 
   @@fulltext([email])
   @@map("users")
 }
 
 model Profile {
-  id          String    @id @default(cuid())
+  id          String    @id @default(uuid())
   firstName   String
   lastName    String
+  middleName  String?
   birthDate   DateTime?
   phoneNumber String?
   avatarUrl   String?
-  userId      String    @unique
-  user        User      @relation(fields: [userId], references: [id])
-  student     Student?
-  teacher     Teacher?
-  parent      Parent?
+  address     Address?  @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  addressId   String?   @unique
+  User        User?
+  Student     Student?
+  Teacher     Teacher?
+  Parent      Parent?
+  Staff       Staff?
 
-  @@fulltext([firstName, lastName])
+  @@fulltext([firstName, lastName, middleName])
   @@map("profiles")
 }
 
-// Students
+model Address {
+  id         String   @id @default(uuid())
+  street     String
+  city       String
+  state      String?
+  postalCode String?
+  country    String
+  profile    Profile?
+
+  @@map("addresses")
+}
+
+// -------- User Roles --------
 
 model Student {
-  id             String        @id @default(cuid())
-  profile        Profile       @relation(fields: [profileId], references: [id])
-  profileId      String        @unique
-  enrollments    Enrollment[]
-  attendances    Attendance[]
-  examResults    ExamResult[]
-  payments       Payment[]
-  balance        Float         @default(0)
-  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id])
-  academicYearId String?
-  parentId       String?
-  schoolGradeId  String?
-  Parent         Parent?       @relation(fields: [parentId], references: [id])
-  SchoolGrade    SchoolGrade?  @relation(fields: [schoolGradeId], references: [id])
+  id                      String                    @id @default(uuid())
+  profileId               String                    @unique
+  profile                 Profile                   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  enrollments             Enrollment[]
+  attendances             Attendance[]
+  examResults             ExamResult[]
+  payments                Payment[]
+  balance                 Decimal                   @default(0)
+  academicYear            AcademicYear?             @relation(fields: [academicYearId], references: [id])
+  academicYearId          String?
+  schoolGrade             SchoolGrade?              @relation(fields: [schoolGradeId], references: [id])
+  schoolGradeId           String?
+  parent                  Parent?                   @relation(fields: [parentId], references: [id])
+  parentId                String?
+  deletedAt               DateTime? // Soft delete timestamp
+  emergencyContactName    String?
+  emergencyContactPhone   String?
+  medicalConditions       String?
+  allergies               String?
+  specialNeeds            String?
+  BookLoan                BookLoan[]
+  DisciplineIncident      DisciplineIncident[]
+  StudentBusAssignment    StudentBusAssignment[]
+  AssignmentSubmission    AssignmentSubmission[]
+  MealOrder               MealOrder[]
+  StudentHealthRecord     StudentHealthRecord[]
+  ParentTeacherConference ParentTeacherConference[]
+  StudentProgress         StudentProgress[]
+  StudentPortfolio        StudentPortfolio[]
 
   @@map("students")
 }
 
-// Teachers
-
 model Teacher {
-  id        String    @id @default(cuid())
-  profile   Profile   @relation(fields: [profileId], references: [id])
-  profileId String    @unique
-  subjects  Subject[]
-  salary    Float
-  payments  Payment[]
+  id                      String                    @id @default(uuid())
+  profileId               String                    @unique
+  profile                 Profile                   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  subjects                Subject[]
+  salary                  Decimal
+  payments                Payment[]
+  deletedAt               DateTime?
+  ClassSchedule           ClassSchedule[]
+  Assignment              Assignment[]
+  TeacherEvaluation       TeacherEvaluation[]
+  ParentTeacherConference ParentTeacherConference[]
 
   @@map("teachers")
 }
 
-// Parents
-
 model Parent {
-  id        String    @id @default(cuid())
-  profile   Profile   @relation(fields: [profileId], references: [id])
-  profileId String    @unique
-  children  Student[]
+  id                      String                    @id @default(uuid())
+  profileId               String                    @unique
+  profile                 Profile                   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  children                Student[]
+  ParentTeacherConference ParentTeacherConference[]
 
   @@map("parents")
 }
 
-// Financial Management
+// -------- Financial Management --------
 
 model Payment {
-  id            String        @id @default(cuid())
-  amount        Float
+  id            String        @id @default(uuid())
+  amount        Decimal
   paymentMethod PaymentMethod
   date          DateTime      @default(now())
   studentId     String?
@@ -105,10 +140,10 @@ model Payment {
 }
 
 model Installment {
-  id             String       @id @default(cuid())
+  id             String       @id @default(uuid())
   name           String
   dueDate        DateTime
-  amount         Float
+  amount         Decimal
   payments       Payment[]
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
   academicYearId String
@@ -116,45 +151,103 @@ model Installment {
   @@map("installments")
 }
 
-// Academic Data
+// -------- Scheduling & Timetable --------
+
+model ClassSchedule {
+  id             String       @id @default(uuid())
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicYearId String
+  schoolGrade    SchoolGrade  @relation(fields: [schoolGradeId], references: [id], onDelete: Cascade)
+  schoolGradeId  String
+  subject        Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId      String
+  teacher        Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId      String
+  dayOfWeek      DayOfWeek
+  startTime      DateTime
+  endTime        DateTime
+}
+
+// -------- Communication & Notifications --------
+model Announcement {
+  id         String   @id @default(uuid())
+  title      String
+  content    String
+  senderId   String
+  sender     User     @relation(fields: [senderId], references: [id])
+  recipients Role? // Single role to receive the announcement
+  date       DateTime @default(now())
+}
+
+// -------- Library Management --------
+
+model Book {
+  id              String     @id @default(uuid())
+  title           String
+  author          String
+  isbn            String?
+  copies          Int        @default(1)
+  availableCopies Int        @default(1) // Track available copies
+  BookLoan        BookLoan[]
+}
+
+model BookLoan {
+  id         String    @id @default(uuid())
+  studentId  String
+  student    Student   @relation(fields: [studentId], references: [id])
+  bookId     String
+  book       Book      @relation(fields: [bookId], references: [id])
+  dueDate    DateTime
+  returnDate DateTime?
+}
+
+// -------- Academic Data --------
 
 model SchoolGrade {
-  id       String    @id @default(cuid())
-  name     String
-  level    Int
-  subjects Subject[]
-  Student  Student[]
+  id            String          @id @default(uuid())
+  name          String
+  level         Int
+  subjects      Subject[]
+  students      Student[]
+  deletedAt     DateTime?
+  ClassSchedule ClassSchedule[]
+  Curriculum    Curriculum[]
 
-  @@map("grades")
+  @@map("school_grades")
 }
 
 model Subject {
-  id          String       @id @default(cuid())
-  name        String
-  schoolGrade SchoolGrade  @relation(fields: [gradeId], references: [id], onDelete: Cascade)
-  gradeId     String
-  teacher     Teacher?     @relation(fields: [teacherId], references: [id], onDelete: SetNull)
-  teacherId   String?
-  enrollments Enrollment[]
-  exams       Exam[]
+  id                String              @id @default(uuid())
+  name              String
+  schoolGrade       SchoolGrade         @relation(fields: [schoolGradeId], references: [id], onDelete: Cascade)
+  schoolGradeId     String
+  teacher           Teacher?            @relation(fields: [teacherId], references: [id])
+  teacherId         String?
+  enrollments       Enrollment[]
+  exams             Exam[]
+  deletedAt         DateTime?
+  ClassSchedule     ClassSchedule[]
+  Assignment        Assignment[]
+  LearningObjective LearningObjective[]
 
   @@map("subjects")
 }
 
 model Enrollment {
-  id        String    @id @default(cuid())
+  id        String    @id @default(uuid())
   student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId String
   subject   Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   subjectId String
   startDate DateTime  @default(now())
   endDate   DateTime?
+  deletedAt DateTime? // Soft delete timestamp
 
   @@map("enrollments")
 }
 
 model Attendance {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId String
   date      DateTime @default(now())
@@ -164,18 +257,19 @@ model Attendance {
 }
 
 model Exam {
-  id          String       @id @default(cuid())
+  id          String       @id @default(uuid())
   subject     Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   subjectId   String
   date        DateTime     @default(now())
   totalMarks  Int
   examResults ExamResult[]
+  deletedAt   DateTime? // Soft delete timestamp
 
   @@map("exams")
 }
 
 model ExamResult {
-  id            String  @id @default(cuid())
+  id            String  @id @default(uuid())
   student       Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId     String
   exam          Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
@@ -185,21 +279,330 @@ model ExamResult {
   @@map("exam_results")
 }
 
-// Academic Year
+// -------- Academic Year --------
 
 model AcademicYear {
-  id           String        @id @default(cuid())
-  name         String        @unique
-  startDate    DateTime
-  endDate      DateTime
-  students     Student[]
-  installments Installment[]
+  id            String          @id @default(uuid())
+  name          String          @unique
+  startDate     DateTime
+  endDate       DateTime
+  students      Student[]
+  installments  Installment[]
+  ClassSchedule ClassSchedule[]
+  Curriculum    Curriculum[]
 
   @@map("academic_years")
 }
 
-// Enums
+// -------- School Resources --------
 
+model Resource {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  type        ResourceType
+  location    String?
+  quantity    Int?
+}
+
+// -------- Discipline Management --------
+
+model DisciplineIncident {
+  id          String   @id @default(uuid())
+  student     Student  @relation(fields: [studentId], references: [id])
+  studentId   String
+  date        DateTime
+  description String
+  actionTaken String?
+}
+
+// -------- Transportation Management --------
+
+model Route {
+  id    String      @id @default(uuid())
+  name  String
+  stops RouteStop[]
+  buses Bus[]
+}
+
+model RouteStop {
+  id       String @id @default(uuid())
+  route    Route  @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  routeId  String
+  stopName String
+}
+
+model Bus {
+  id                   String                 @id @default(uuid())
+  number               String                 @unique
+  driver               String
+  capacity             Int
+  route                Route?                 @relation(fields: [routeId], references: [id])
+  routeId              String?
+  StudentBusAssignment StudentBusAssignment[]
+}
+
+model StudentBusAssignment {
+  id        String  @id @default(uuid())
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+  busId     String
+  bus       Bus     @relation(fields: [busId], references: [id])
+}
+
+// -------- Staff Management --------
+
+model Staff {
+  id         String  @id @default(uuid())
+  profileId  String  @unique
+  profile    Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  position   String
+  department String
+  salary     Decimal
+}
+
+// -------- Homework & Assignments --------
+
+model Assignment {
+  id                   String                 @id @default(uuid())
+  title                String
+  description          String?
+  dueDate              DateTime
+  subject              Subject                @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  subjectId            String
+  teacher              Teacher                @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacherId            String
+  AssignmentSubmission AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id           String     @id @default(uuid())
+  studentId    String
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  submission   String?
+  submittedAt  DateTime?
+  grade        Decimal?
+}
+
+// -------- School Events & Calendar --------
+
+model Event {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  location    String?
+  type        EventType
+}
+
+// -------- Cafeteria Management (Optional) --------
+
+model MenuItem {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  price       Decimal
+  category    String?
+  MealOrder   MealOrder? @relation(fields: [mealOrderId], references: [id])
+  mealOrderId String?
+}
+
+model MealOrder {
+  id        String     @id @default(uuid())
+  studentId String
+  student   Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  items     MenuItem[]
+  date      DateTime   @default(now())
+  total     Decimal
+}
+
+model InventoryItem {
+  id                String              @id @default(uuid())
+  name              String
+  description       String?
+  category          String?
+  quantity          Int                 @default(0)
+  reorderLevel      Int?
+  supplier          Supplier?           @relation(fields: [supplierId], references: [id])
+  supplierId        String?
+  PurchaseOrderItem PurchaseOrderItem[]
+}
+
+model Supplier {
+  id            String          @id @default(uuid())
+  name          String
+  contact       String
+  email         String?
+  website       String?
+  InventoryItem InventoryItem[]
+  PurchaseOrder PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id         String              @id @default(uuid())
+  supplier   Supplier            @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierId String
+  orderDate  DateTime            @default(now())
+  status     PurchaseOrderStatus
+  items      PurchaseOrderItem[]
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(uuid())
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  purchaseOrderId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  inventoryItemId String
+  quantity        Int
+  price           Decimal
+}
+
+// -------- School Policies and Documents --------
+
+model SchoolPolicy {
+  id            String   @id @default(uuid())
+  title         String
+  category      String
+  description   String
+  effectiveDate DateTime @default(now())
+  documentUrl   String?
+}
+
+// -------- Student Health Records --------
+
+model StudentHealthRecord {
+  id          String   @id @default(uuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date        DateTime
+  description String
+  doctor      String?
+  notes       String?
+}
+
+// -------- Teacher Evaluations (Optional) --------
+
+model TeacherEvaluation {
+  id          String   @id @default(uuid())
+  teacherId   String
+  teacher     Teacher  @relation(fields: [teacherId], references: [id])
+  evaluatorId String // Could be another teacher, admin, or parent
+  evaluator   User     @relation(fields: [evaluatorId], references: [id])
+  date        DateTime
+  rating      Int
+  comments    String?
+}
+
+// -------- Parent-Teacher Conferences --------
+
+model ParentTeacherConference {
+  id        String   @id @default(uuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  teacherId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+  parentId  String
+  parent    Parent   @relation(fields: [parentId], references: [id])
+  date      DateTime
+  notes     String?
+}
+
+// -------- Student Progress Tracking --------
+
+model LearningObjective {
+  id              String            @id @default(uuid())
+  name            String
+  description     String?
+  subject         Subject           @relation(fields: [subjectId], references: [id])
+  subjectId       String
+  StudentProgress StudentProgress[]
+}
+
+model StudentProgress {
+  id                  String            @id @default(uuid())
+  studentId           String
+  student             Student           @relation(fields: [studentId], references: [id])
+  learningObjective   LearningObjective @relation(fields: [learningObjectiveId], references: [id])
+  learningObjectiveId String
+  status              ProgressStatus
+  date                DateTime          @default(now())
+  notes               String?
+}
+
+// -------- School Calendar and Events --------
+
+// ... (Event model from previous response)
+
+model CalendarEvent {
+  id     String   @id @default(uuid())
+  title  String
+  start  DateTime
+  end    DateTime
+  allDay Boolean  @default(false)
+  // You can add more fields like description, location, color, etc.
+}
+
+// -------- School Facilities & Maintenance --------
+
+model Facility {
+  id                 String               @id @default(uuid())
+  name               String
+  description        String?
+  location           String?
+  capacity           Int?
+  MaintenanceRequest MaintenanceRequest[]
+}
+
+model MaintenanceRequest {
+  id          String    @id @default(uuid())
+  facilityId  String
+  facility    Facility  @relation(fields: [facilityId], references: [id])
+  description String
+  status      String    @default("Pending")
+  submittedBy String // User ID
+  submittedAt DateTime  @default(now())
+  resolvedAt  DateTime?
+  notes       String?
+}
+
+// -------- Curriculum Management --------
+model Curriculum {
+  id             String       @id @default(uuid())
+  name           String
+  description    String?
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  academicYearId String
+  schoolGrade    SchoolGrade  @relation(fields: [schoolGradeId], references: [id])
+  schoolGradeId  String
+}
+
+// -------- Student Portfolios --------
+
+model StudentPortfolio {
+  id          String   @id @default(uuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  artifactUrl String
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+// -------- Audit Log --------
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String // E.g., 'CREATE', 'UPDATE', 'DELETE'
+  entity    String // E.g., 'User', 'Payment'
+  entityId  String
+  timestamp DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+// -------- Enums --------
 enum Role {
   ADMIN
   TEACHER
@@ -218,4 +621,44 @@ enum PaymentMethod {
   CREDIT_CARD
   BANK_TRANSFER
   CHECK
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum ResourceType {
+  COMPUTER
+  PROJECTOR
+  LAB_EQUIPMENT
+  BOOK
+  OTHER
+}
+
+enum EventType {
+  ACADEMIC
+  SPORTS
+  CULTURAL
+  HOLIDAY
+  OTHER
+}
+
+enum PurchaseOrderStatus {
+  PENDING
+  APPROVED
+  SHIPPED
+  DELIVERED
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  NEEDS_REVIEW
 }
